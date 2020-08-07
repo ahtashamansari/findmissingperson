@@ -1,10 +1,15 @@
 from django.shortcuts import render
-from .models import Question, Unknown
-# Create your views here.
+from .models import Missing_Person
+from django.conf import settings
+from django.conf.urls.static import static
+from .forms import OrderCreateForm
 from django.http import HttpResponse
 import face_recognition
 import os
-
+from django.http import HttpResponseRedirect
+from django.shortcuts import render
+from .forms import UploadFileForm
+from django.core.files.storage import FileSystemStorage
 
 def index(request):
     return render(request,"face/missing.html")
@@ -16,44 +21,42 @@ def updated(request):
         your_address=request.POST.get('address')
         your_contact=request.POST.get('contact_no')
         your_img=request.POST.get('img')
-        var_img = Question(name=your_name, age=your_age, address=your_address, Contact_no=your_contact, image=your_img)
+        your_image_name=request.POST.get('image_name')
+        var_img = Missing_Person(name=your_name, age=your_age, address=your_address,
+             Contact_no=your_contact, image=your_img,image_name=your_image_name)
         var_img.save()
+        uploaded_file = request.FILES['img']
+        fs = FileSystemStorage()
+        name=fs.save(uploaded_file.name, uploaded_file)
 
     return render(request,"face/updated.html")    
 
 def result(request):
     if request.method== 'POST':
-        img=request.POST.get('img')
-        var_img = Unknown(image=img)
-        var_img.save()
+        uploaded_file = request.FILES['img']
+        uname=uploaded_file.name
+        fs = FileSystemStorage()
+        name=fs.save(uploaded_file.name, uploaded_file)
+        url=fs.url(name)
 
-        unknown_image_list = []
-        basepath = './missing_faces/Unknown'
-        for entry in os.listdir(basepath):
-            if os.path.isfile(os.path.join(basepath, entry)):
-                unknown_image_list.append(entry)
-
-        image_of_bill = face_recognition.load_image_file('./missing_faces/Unknown/'+unknown_image_list[-1])  
-        bill_face_encoding = face_recognition.face_encodings(image_of_bill)[0]
-
+        unknown_image = face_recognition.load_image_file('./media/'+uname) 
+        unknown_face_encoding = face_recognition.face_encodings(unknown_image)[0]        
+    
         known_image_list = []
-        basepath = './missing_faces/Known'
+        basepath = './media'
         for entry in os.listdir(basepath):
             if os.path.isfile(os.path.join(basepath, entry)):
-                known_image_list.append(entry)
-                   
-
-        #lst=Question.objects.all()
-        for image in range(len(known_image_list)):
-            unknown_image = face_recognition.load_image_file('./missing_faces/Known/'+known_image_list[0]) 
-            unknown_face_encoding = face_recognition.face_encodings(unknown_image)[0]
-            results = face_recognition.compare_faces([bill_face_encoding], unknown_face_encoding)
-            matched_name=known_image_list[0]
-            
+                known_image_list.append(entry)       
+        
+        for image in known_image_list:
+            if(image==uname):
+                continue
+            known_image = face_recognition.load_image_file('./media/'+image)  
+            known_face_encoding = face_recognition.face_encodings(known_image)[0]
+            results = face_recognition.compare_faces([known_face_encoding], unknown_face_encoding)
             if results[0]:
-                #stri=Question.objects.filter(name=matched_name)
-                return render(request, 'face/matched_person.html', {'names': known_image_list[0]})
+                fs.delete(uploaded_file.name)
+                return render(request, 'face/matched_person.html', {'names': image})
                 break
-            else:
-                known_image_list.remove(known_image_list[0])
-        return render(request,'face/result.html')    
+        fs.delete(uploaded_file.name)    
+        return render(request,'face/result.html') 

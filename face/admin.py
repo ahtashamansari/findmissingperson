@@ -1,5 +1,4 @@
 from django.contrib import admin
-from .models import Question, Unknown
+from .models import Missing_Person
 # Register your models here.
-admin.site.register(Question)
-admin.site.register(Unknown)
+admin.site.register(Missing_Person)
